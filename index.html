@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MindMate Wellness Tracker</title>
+<style>
+  body { font-family: Arial, sans-serif; margin:2em; background:#f9f9f9; }
+  h1 { color:#2c3e50; }
+  label { display:block; margin-top:0.5em; }
+  input[type=number], input[type=text], select, textarea { width:100%; padding:0.5em; margin-top:0.2em; }
+  textarea { height:4em; }
+  .button { margin-top:1em; padding:0.5em 1em; background:#3498db; color:white; border:none; cursor:pointer; }
+  .button:disabled { background:#95a5a6; cursor:not-allowed; }
+  #suggestionsSection, #reportSection { margin-top:2em; padding:1em; border:1px solid #ddd; background:#fff; display:none; }
+  #crisisAlert { color:#c0392b; font-weight:bold; margin-bottom:1em; }
+  ul { list-style: disc inside; }
+  .nav { margin-top:1em; }
+</style>
+</head>
+<body>
+<h1>MindMate Daily Check-In</h1>
+<form id="checkinForm">
+  <label>Name:<br>
+    <input type="text" name="name" required>
+  </label>
+  <label>Exam type (e.g., NEET, JEE, Board):<br>
+    <input type="text" name="exam" required>
+  </label>
+  <label>Mood:<br>
+    <select name="mood" required>
+      <option value="Happy">Happy</option>
+      <option value="Calm">Calm</option>
+      <option value="Sad">Sad</option>
+      <option value="Angry">Angry</option>
+      <option value="Anxious">Anxious</option>
+      <option value="Tired">Tired</option>
+    </select>
+  </label>
+  <label>Stress level (1–10):<br>
+    <input type="number" name="stress" min="1" max="10" required>
+  </label>
+  <label>Sleep hours (last night):<br>
+    <input type="number" name="sleep" step="0.1" min="0" required>
+  </label>
+  <label>Study hours (today):<br>
+    <input type="number" name="study" step="0.1" min="0" required>
+  </label>
+  <label>Stress triggers (comma separated):<br>
+    <input type="text" name="triggers">
+  </label>
+  <label>Reflection / Journal:<br>
+    <textarea name="journal"></textarea>
+  </label>
+  <button class="button" type="submit">Submit</button>
+</form>
+<div id="suggestionsSection">
+  <div id="crisisAlert"></div>
+  <h2>Personalised suggestions</h2>
+  <ul id="suggestionsList"></ul>
+</div>
+<div class="nav">
+  <button class="button" id="reportButton">View report</button>
+</div>
+<div id="reportSection">
+  <h2>Analytics Summary</h2>
+  <div id="reportContent"></div>
+</div>
+<script>
+function loadData() {
+  return JSON.parse(localStorage.getItem('mindmateData') || '[]');
+}
+function saveData(data) {
+  localStorage.setItem('mindmateData', JSON.stringify(data));
+}
+function detectCrisis(text) {
+  if (!text) return false;
+  const terms = ['die','harm','kill myself','suicide','disappear','can\'t go on','cannot go on'];
+  const lower = text.toLowerCase();
+  return terms.some(term => lower.includes(term));
+}
+function generateSuggestions(entry) {
+  const suggestions = [];
+  if (entry.stress >= 8 && entry.sleep < 6) {
+    suggestions.push('You reported high stress and less than six hours of sleep. Consider stopping revision 30 minutes before bed, doing a relaxing activity like reading or stretching, and aiming for at least 7–8 hours of rest tonight.');
+  }
+  if (entry.triggers.some(t => t.toLowerCase().includes('mock'))) {
+    suggestions.push('It seems mock tests are a stress trigger. After a mock test, focus on learning from your mistakes rather than self‑criticism. Review the errors, then take a short walk or relaxation break.');
+  }
+  if (entry.triggers.some(t => t.toLowerCase().includes('parent'))) {
+    suggestions.push('You listed parental pressure as a stressor. Try having an honest conversation about how you’re feeling, and set realistic expectations together.');
+  }
+  if (entry.triggers.some(t => t.toLowerCase().includes('comparison') || t.toLowerCase().includes('self-doubt'))) {
+    suggestions.push('Comparison with peers can be discouraging. Spend a few minutes reminding yourself of your achievements, and practice focusing on your own progress rather than others’.');
+  }
+  if (entry.stress >= 5) {
+    suggestions.push('Try a quick 4‑7‑8 breathing exercise: inhale for 4 seconds, hold for 7, then exhale for 8. Repeat this cycle a few times to calm your nervous system.');
+  }
+  if (!entry.journal || entry.journal.trim().length < 10) {
+    suggestions.push('Consider spending a few minutes writing about your day and emotions. Journaling can help process feelings and reduce anxiety.');
+  }
+  return suggestions;
+}
+document.getElementById('checkinForm').addEventListener('submit', function(ev) {
+  ev.preventDefault();
+  const form = ev.target;
+  const dataArr = loadData();
+  const name = form.name.value.trim();
+  const exam = form.exam.value.trim();
+  const mood = form.mood.value;
+  const stress = parseInt(form.stress.value);
+  const sleep = parseFloat(form.sleep.value);
+  const study = parseFloat(form.study.value);
+  const triggers = form.triggers.value ? form.triggers.value.split(',').map(s => s.trim()) : [];
+  const journal = form.journal.value.trim();
+  const entry = {date: new Date().toISOString().split('T')[0], name, exam, mood, stress, sleep, study, triggers, journal};
+  dataArr.push(entry);
+  saveData(dataArr);
+  const suggestions = generateSuggestions(entry);
+  const crisis = detectCrisis(journal);
+  const list = document.getElementById('suggestionsList');
+  list.innerHTML = '';
+  if (suggestions.length > 0) {
+    suggestions.forEach(text => {
+      const li = document.createElement('li');
+      li.textContent = text;
+      list.appendChild(li);
+    });
+  } else {
+    const li = document.createElement('li');
+    li.textContent = 'No specific suggestions today. Keep taking care of yourself!';
+    list.appendChild(li);
+  }
+  const crisisAlert = document.getElementById('crisisAlert');
+  if (crisis) {
+    crisisAlert.textContent = 'Crisis alert: your entry contains phrases that may indicate severe distress. Please reach out to a trusted adult, counsellor, or crisis hotline immediately.';
+  } else {
+    crisisAlert.textContent = '';
+  }
+  document.getElementById('suggestionsSection').style.display = 'block';
+  form.reset();
+});
+function updateReport() {
+  const dataArr = loadData();
+  const reportDiv = document.getElementById('reportContent');
+  if (!dataArr || dataArr.length === 0) {
+    reportDiv.innerHTML = '<p>No data available. Start by adding some check‑ins.</p>';
+  } else {
+    const total = dataArr.length;
+    const moodCounts = {};
+    let sumStress = 0, sumSleep = 0, sumStudy = 0;
+    dataArr.forEach(entry => {
+      moodCounts[entry.mood] = (moodCounts[entry.mood] || 0) + 1;
+      sumStress += entry.stress;
+      sumSleep += entry.sleep;
+      sumStudy += entry.study;
+    });
+    const items = [];
+    items.push('<p>Total check‑ins: ' + total + '</p>');
+    let moodList = '<ul>';
+    for (const mood in moodCounts) {
+      moodList += '<li>' + mood + ': ' + moodCounts[mood] + '</li>';
+    }
+    moodList += '</ul>';
+    items.push('<p><strong>Mood distribution:</strong></p>' + moodList);
+    items.push('<p>Average stress level: ' + (sumStress/total).toFixed(2) + '</p>');
+    items.push('<p>Average sleep hours: ' + (sumSleep/total).toFixed(2) + '</p>');
+    items.push('<p>Average study hours: ' + (sumStudy/total).toFixed(2) + '</p>');
+    reportDiv.innerHTML = items.join('');
+  }
+  document.getElementById('reportSection').style.display = 'block';
+}
+document.getElementById('reportButton').addEventListener('click', updateReport);
+</script>
+</body>
+</html>
